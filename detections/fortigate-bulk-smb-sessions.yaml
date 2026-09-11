@@ -1,0 +1,45 @@
+name: FortiGate - High Volume of SMB Sessions from Single Host
+id: 5f39dc7e-6847-4d17-9237-22a07cf96531
+version: 1
+schema_version: "1.0"
+date: "2026-09-10"
+author: Prime Systems & Networks
+description: >
+  Detects a source host establishing an unusually high number of distinct
+  SMB sessions within a short period. This may indicate network discovery,
+  lateral movement, automated administrative activity, or malware propagation.
+data_source:
+  - FortiGate Traffic Logs
+how_to_implement: >
+  Requires FortiGate traffic logs with service, action, srcintfrole, srcip,
+  devname, and sessionid fields parsed in Graylog.
+known_false_positives: >
+  Domain controllers, file servers, backup systems, software deployment tools,
+  vulnerability scanners, and other administrative systems may legitimately
+  establish large numbers of SMB sessions.
+response:
+  risk_score: 65
+  severity: high
+tags:
+  asset_type: Network
+  mitre_attack_id:
+    - T1021.002
+  custom_tags:
+    - smb
+    - lateral-movement
+    - fortigate
+  product:
+    - FortiGate
+  security_domain: network
+graylog:
+  query: 'type:traffic AND subtype:forward AND service:SMB AND srcintfrole:lan AND action:accept'
+aggregation:
+  enabled: true
+  function: distinct_count
+  field: sessionid
+  group_by:
+    - srcip
+    - devname
+  window: 5m
+  threshold: 20
+  condition: ">"
