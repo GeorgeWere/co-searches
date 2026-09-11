@@ -1,0 +1,111 @@
+name: FortiGate - High Volume DNS Requests from Single Host
+id: 1da58020-df7d-48bb-873b-315c18a8b6d7
+version: 1
+schema_version: "1.0"
+date: "2026-09-11"
+author: Prime Systems & Networks
+status: experimental
+type: Correlation
+
+description: >
+  Detects a source host generating an unusually high volume of DNS traffic
+  within a short period. This may indicate malware activity, DNS tunneling,
+  automated discovery, misconfiguration, or an infected endpoint generating
+  excessive DNS queries.
+
+data_source:
+  - FortiGate Traffic Logs
+
+search:
+  index_pattern: "${INDEX_PATTERN}"
+  size: 100
+  sort:
+    - timestamp: desc
+  query:
+    bool:
+      must:
+        - term:
+            type: "traffic"
+        - term:
+            subtype: "forward"
+        - term:
+            service: "DNS"
+        - term:
+            srcintfrole: "lan"
+        - range:
+            timestamp:
+              gte: "${START_TIME}"
+              lte: "${END_TIME}"
+  _source:
+    - timestamp
+    - devname
+    - srcip
+    - dstip
+    - srcport
+    - dstport
+    - service
+    - action
+    - sessionid
+    - srcintf
+    - srcintfrole
+    - dstintf
+    - dstintfrole
+    - type
+    - subtype
+    - syslog_customer
+
+parameters:
+  INDEX_PATTERN:
+    description: FortiGate index pattern
+    type: string
+    required: true
+    example: "fortinet-ltwp*"
+
+  START_TIME:
+    description: Search window start
+    type: datetime
+    default: "now-24h"
+
+  END_TIME:
+    description: Search window end
+    type: datetime
+    default: "now"
+
+how_to_implement: >
+  Requires FortiGate traffic logs with type, subtype, service, srcintfrole,
+  srcip, devname, and sessionid fields parsed and searchable.
+
+known_false_positives: >
+  Domain controllers, DNS forwarders, proxy systems, monitoring platforms,
+  security appliances, and other infrastructure systems may legitimately
+  generate large volumes of DNS traffic.
+
+response:
+  risk_score: 60
+  severity: medium
+
+tags:
+  asset_type: Network
+  mitre_attack_id:
+    - T1071.004
+  custom_tags:
+    - dns
+    - dns-flood
+    - fortigate
+  product:
+    - FortiGate
+  security_domain: network
+
+graylog:
+  query: 'type:traffic AND subtype:forward AND service:DNS AND srcintfrole:lan'
+
+aggregation:
+  enabled: true
+  function: count
+  field: null
+  group_by:
+    - srcip
+    - devname
+  window: 5m
+  threshold: 500
+  condition: ">"
