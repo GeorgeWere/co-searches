@@ -1,30 +1,110 @@
-name: FortiGate Test - LTWP
-id: 78d599f5-08a4-4e19-a754-f19d08f63ed5
-version: 1
+name: FortiGate - High Volume of SMB Sessions from Single Host
+id: 5f39dc7e-6847-4d17-9237-22a07cf96531
+version: 2
 schema_version: "1.0"
-date: "2026-09-10"
+date: "2026-09-11"
 author: Prime Systems & Networks
+status: experimental
+type: Correlation
+
 description: >
-  Test FortiGate visibility from SOCFortress Copilot.
+  Detects a source host establishing an unusually high number of distinct
+  SMB sessions within a short period. This may indicate network discovery,
+  lateral movement, automated administrative activity, or malware propagation.
+
 data_source:
   - FortiGate Traffic Logs
+
+search:
+  index_pattern: "${INDEX_PATTERN}"
+  size: 100
+  sort:
+    - timestamp: desc
+  query:
+    bool:
+      must:
+        - term:
+            type: "traffic"
+        - term:
+            subtype: "forward"
+        - term:
+            service: "SMB"
+        - term:
+            srcintfrole: "lan"
+        - term:
+            action: "accept"
+        - range:
+            timestamp:
+              gte: "${START_TIME}"
+              lte: "${END_TIME}"
+  _source:
+    - timestamp
+    - devname
+    - srcip
+    - dstip
+    - srcport
+    - dstport
+    - service
+    - action
+    - sessionid
+    - srcintfrole
+    - dstintfrole
+    - type
+    - subtype
+    - syslog_customer
+
+parameters:
+  INDEX_PATTERN:
+    description: FortiGate index pattern
+    type: string
+    required: true
+    example: "fortinet-ltwp*"
+
+  START_TIME:
+    description: Search window start
+    type: datetime
+    default: "now-24h"
+
+  END_TIME:
+    description: Search window end
+    type: datetime
+    default: "now"
+
 how_to_implement: >
-  Test rule.
+  Requires FortiGate traffic logs with service, action, srcintfrole, srcip,
+  devname, and sessionid fields parsed in Graylog.
+
 known_false_positives: >
-  Test rule.
+  Domain controllers, file servers, backup systems, software deployment tools,
+  vulnerability scanners, and other administrative systems may legitimately
+  establish large numbers of SMB sessions.
+
 response:
-  risk_score: 10
-  severity: low
+  risk_score: 65
+  severity: high
+
 tags:
   asset_type: Network
   mitre_attack_id:
     - T1021.002
   custom_tags:
-    - test
+    - smb
+    - lateral-movement
+    - fortigate
   product:
     - FortiGate
   security_domain: network
+
 graylog:
-  query: 'syslog_customer:ltwp'
+  query: 'type:traffic AND subtype:forward AND service:SMB AND srcintfrole:lan AND action:accept'
+
 aggregation:
-  enabled: false
+  enabled: true
+  function: distinct_count
+  field: sessionid
+  group_by:
+    - srcip
+    - devname
+  window: 5m
+  threshold: 20
+  condition: ">"
