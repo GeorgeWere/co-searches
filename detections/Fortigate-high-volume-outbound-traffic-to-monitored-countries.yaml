@@ -1,0 +1,127 @@
+name: FortiGate - High Volume Outbound Traffic to Monitored Countries
+id: 1199d3fc-6d71-48fb-81da-8c4836c7991c
+version: 1
+schema_version: "1.0"
+date: "2026-09-11"
+author: Prime Systems & Networks
+status: experimental
+type: Correlation
+
+description: >
+  Detects a source host generating a high volume of accepted outbound traffic
+  to selected monitored countries within a short period. This may warrant
+  investigation for unusual external communication, malware activity,
+  unauthorized services, or data transfer.
+
+data_source:
+  - FortiGate Traffic Logs
+
+search:
+  index_pattern: "${INDEX_PATTERN}"
+  size: 100
+  sort:
+    - timestamp: desc
+  query:
+    bool:
+      must:
+        - term:
+            type: "traffic"
+        - term:
+            subtype: "forward"
+        - term:
+            srcintfrole: "lan"
+        - term:
+            action: "accept"
+        - bool:
+            should:
+              - term:
+                  dstcountry: "Russia"
+              - term:
+                  dstcountry: "China"
+              - term:
+                  dstcountry: "North Korea"
+              - term:
+                  dstcountry: "Iran"
+            minimum_should_match: 1
+        - range:
+            timestamp:
+              gte: "${START_TIME}"
+              lte: "${END_TIME}"
+  _source:
+    - timestamp
+    - devname
+    - srcip
+    - dstip
+    - srcport
+    - dstport
+    - service
+    - action
+    - sessionid
+    - srcintf
+    - srcintfrole
+    - dstintf
+    - dstintfrole
+    - dstcountry
+    - type
+    - subtype
+    - policyid
+    - policyname
+    - syslog_customer
+
+parameters:
+  INDEX_PATTERN:
+    description: FortiGate index pattern
+    type: string
+    required: true
+    example: "fortinet-ltwp*"
+
+  START_TIME:
+    description: Search window start
+    type: datetime
+    default: "now-24h"
+
+  END_TIME:
+    description: Search window end
+    type: datetime
+    default: "now"
+
+how_to_implement: >
+  Requires FortiGate forward traffic logs with source and destination
+  addresses, destination country, action, interface role, and device fields
+  parsed and searchable.
+
+known_false_positives: >
+  Legitimate cloud services, software updates, content delivery networks,
+  vendor infrastructure, DNS services, and approved business systems may
+  communicate with systems geolocated in monitored countries.
+
+response:
+  risk_score: 65
+  severity: high
+
+tags:
+  asset_type: Network
+  mitre_attack_id:
+    - T1071
+  custom_tags:
+    - geo
+    - outbound
+    - fortigate
+    - network-anomaly
+  product:
+    - FortiGate
+  security_domain: network
+
+graylog:
+  query: 'type:traffic AND subtype:forward AND srcintfrole:lan AND action:accept AND (dstcountry:Russia OR dstcountry:China OR dstcountry:"North Korea" OR dstcountry:Iran)'
+
+aggregation:
+  enabled: true
+  function: count
+  field: null
+  group_by:
+    - srcip
+    - devname
+  window: 15m
+  threshold: 50
+  condition: ">"
